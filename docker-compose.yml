@@ -1,0 +1,77 @@
+services:
+  # Backend App (PHP-FPM)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cinevault_backend
+    restart: unless-stopped
+    tty: true
+    working_dir: /var/www
+    volumes:
+      - ./backend:/var/www
+      - /var/www/vendor
+    networks:
+      - cinevault-network
+
+  # Backend Web Server (Nginx)
+  nginx:
+    image: nginx:alpine
+    container_name: cinevault_nginx
+    restart: unless-stopped
+    tty: true
+    ports:
+      - "8000:80"
+    volumes:
+      - ./backend:/var/www
+      - ./nginx/conf.d/:/etc/nginx/conf.d/
+    networks:
+      - cinevault-network
+    depends_on:
+      - backend
+
+  # Database
+  db:
+    image: mysql:8.0
+    container_name: cinevault_db
+    restart: unless-stopped
+    tty: true
+    ports:
+      - "3306:3306" # Exposed for debugging, can be removed in prod
+    environment:
+      MYSQL_DATABASE: 1
+      MYSQL_USER: 1
+      MYSQL_PASSWORD: 1
+      MYSQL_ROOT_PASSWORD: root_password
+    volumes:
+      - dbdata:/var/lib/mysql
+      # - ./db:/docker-entrypoint-initdb.d
+    networks:
+      - cinevault-network
+
+  # Frontend (Vue 3)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cinevault_frontend
+    restart: unless-stopped
+    tty: true
+    ports:
+      - "3000:3000" # Vite port
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - cinevault-network
+    # Run command to start dev server
+    command: sh -c "npm install && npm run dev" 
+    # command: tail -f /dev/null 
+
+networks:
+  cinevault-network:
+    driver: bridge
+
+volumes:
+  dbdata:
+    driver: local
