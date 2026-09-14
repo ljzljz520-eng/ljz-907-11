@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\Movie;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -116,13 +115,16 @@ class CsvImportTest extends TestCase
         $preview = $this->postJson('/api/movies/import/preview', ['file' => $this->csvUpload($csv)]);
         $token = $preview->json('token');
 
-        $previewFile = collect(File::allFiles(storage_path('app/csv_preview')))->first();
-        $payload = json_decode($previewFile->getContents(), true);
+        $disk = Storage::disk('local');
+        $previewPath = collect($disk->files('csv_preview'))->first();
+        $this->assertNotEmpty($previewPath, '暂存文件应已写入 csv_preview 目录');
+
+        $payload = json_decode($disk->get($previewPath), true);
         foreach ($payload['rows'] as &$row) {
             $row['data']['year'] = 'abcd'; // 篡改暂存数据
         }
         unset($row);
-        File::put($previewFile->getPathname(), json_encode($payload));
+        $disk->put($previewPath, json_encode($payload, JSON_UNESCAPED_UNICODE));
 
         $res = $this->postJson('/api/movies/import/confirm', ['token' => $token]);
         $res->assertStatus(422);
